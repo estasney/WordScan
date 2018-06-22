@@ -140,3 +140,13 @@ def _fetch_req(req_num):
     text_lines = [line for line in raw_text.splitlines() if not JD_HEADERS.search(line)]
     return " ".join(text_lines)
 
+
+class AvatureMixin(object):
+
+    def __init__(self, zip_path):
+        self.text = self._df_to_text(zip_path)
+
+    @staticmethod
+    def _df_to_text(zip_path):
+        df = extract_quickview(zip_path)
+        return df['Resume'].values.tolist()

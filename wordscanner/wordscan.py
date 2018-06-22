@@ -1,98 +1,22 @@
-import easygui
-import nltk
-from nltk.tokenize.nist import NISTTokenizer
-from nltk.corpus import wordnet
-from rake_nltk import Rake
-from components.preprocessing import FILTERS, preprocess_string
 from collections import Counter
-from components.wikiscraper import get_wiki_text
-from components.avature import extract_quickview, _fetch_req
 from operator import itemgetter
 
+import easygui
 
-class WordCleanerMixin(object):
-
-    def __init__(self, text):
-        self.raw_text = text
-        self.tokenizer = NISTTokenizer()
-        self.lemmatizer = nltk.WordNetLemmatizer()
-        self.wordnet_corpus = wordnet
-
-    def clean_text(self, text=None):
-        if not text:
-            return preprocess_string(self.raw_text, FILTERS)
-        else:
-            return preprocess_string(text, FILTERS)
-
-    def tokenize_text(self):
-        return self.tokenizer.tokenize(self.raw_text)
-
-    def pos_tag_text(self):
-        return nltk.pos_tag(self.tokenize_text())
-
-    def stem_tokens(self):
-        pos_tagged_tokens = self.pos_tag_text()
-        return [self.lemmatizer.lemmatize(token, self.get_wordnet_pos(tag)) if self.get_wordnet_pos(tag)
-                else self.lemmatizer.lemmatize(token) for token, tag in pos_tagged_tokens]
-
-    def get_wordnet_pos(self, treebank_tag):
-        if treebank_tag.startswith('J'):
-            return self.wordnet_corpus.ADJ
-        elif treebank_tag.startswith('V'):
-            return self.wordnet_corpus.VERB
-        elif treebank_tag.startswith('N'):
-            return self.wordnet_corpus.NOUN
-        elif treebank_tag.startswith('R'):
-            return self.wordnet_corpus.ADV
-        else:
-            return False
-
-
-class KeywordExtractionMixin(object):
-
-    def __init__(self):
-        self.kw_finder = Rake()
-
-    def extract_kw(self, text, scores=True):
-        self.kw_finder.extract_keywords_from_text(text)
-        if scores:
-            return self.kw_finder.get_ranked_phrases_with_scores()
-        else:
-            return self.kw_finder.get_ranked_phrases()
-
-
-class WikipediaMixin(object):
-
-    def __init__(self, url):
-        self.text = " ".join(get_wiki_text(url))
-
-
-class AvatureMixin(object):
-
-    def __init__(self, zip_path):
-        self.text = self._df_to_text(zip_path)
-
-    @staticmethod
-    def _df_to_text(zip_path):
-        df = extract_quickview(zip_path)
-        return df['Resume'].values.tolist()
-
-
-class CiscoJobsMixin(object):
-
-    def __init__(self, req_id):
-        self.text = self.fetch_req(req_id)
-
-    @staticmethod
-    def fetch_req(req_id):
-        job_text = _fetch_req(req_id)
-        return job_text
+from components.avature import AvatureMixin
+from components.cisco_jobs import CiscoJobsMixin
+from components.keywords import KeywordExtractionMixin
+from components.preprocessing import WordCleanerMixin
+from components.ui import UserInterface
+from components.wikiscraper import WikipediaMixin
 
 
 class WordSearch(object):
 
-    def __init__(self, multiple, text=None):
+    def __init__(self, multiple, stem, lemma, text=None):
         self.multiple = multiple
+        self.stem = stem
+        self.lemma = lemma
         if not text:
             self.text = self.prompt_text()
         else:
@@ -121,7 +45,7 @@ class WordSearch(object):
 class KeywordSearch(WordSearch, KeywordExtractionMixin):
 
     def __init__(self, multiple):
-        WordSearch.__init__(self, multiple)
+        WordSearch.__init__(self, multiple, stem=False, lemma=False)  # Not used with Rake
         KeywordExtractionMixin.__init__(self)
 
     def _get_keywords(self, scores=True):
@@ -140,16 +64,16 @@ class KeywordSearch(WordSearch, KeywordExtractionMixin):
 
 class WordCounts(WordSearch, WordCleanerMixin):
 
-    def __init__(self, multiple):
-        WordSearch.__init__(self, multiple)
-        WordCleanerMixin.__init__(self, self.text)
+    def __init__(self, multiple, stem, lemma):
+        WordSearch.__init__(self, multiple, stem, lemma)
+        WordCleanerMixin.__init__(self, self.stem, self.lemma)
 
     def _get_counts(self, topn=100):
         if self.multiple:
-            all_text = [self.clean_text(doc) for doc in self.text]
+            all_text = [self.clean(doc) for doc in self.text]
             all_text = [words for doc in all_text for words in doc]
         else:
-            all_text = self.clean_text(self.text)
+            all_text = self.clean(self.text)
 
         word_counter = Counter(all_text)
         counts = word_counter.most_common(n=topn)
@@ -162,21 +86,21 @@ class WordCounts(WordSearch, WordCleanerMixin):
 
 class WikiWordCounts(WordSearch, WordCleanerMixin, WikipediaMixin):
 
-    def __init__(self):
+    def __init__(self, stem, lemma):
         self.url = self.prompt_text()
         WikipediaMixin.__init__(self, self.url)
-        WordSearch.__init__(self, multiple=False, text=self.text)
-        WordCleanerMixin.__init__(self, self.text)
+        WordSearch.__init__(self, multiple=False, text=self.text, stem=stem, lemma=lemma)
+        WordCleanerMixin.__init__(self, self.stem, self.lemma)
 
     def prompt_text(self):
         return easygui.enterbox(msg="Enter the wikipedia URL")
 
     def _get_counts(self, topn=100):
         if self.multiple:
-            all_text = [self.clean_text(doc) for doc in self.text]
+            all_text = [self.clean(doc) for doc in self.text]
             all_text = [words for doc in all_text for words in doc]
         else:
-            all_text = self.clean_text(self.text)
+            all_text = self.clean(self.text)
 
         word_counter = Counter(all_text)
         counts = word_counter.most_common(n=topn)
@@ -189,17 +113,17 @@ class WikiWordCounts(WordSearch, WordCleanerMixin, WikipediaMixin):
 
 class AvatureWordCounts(WordSearch, WordCleanerMixin, AvatureMixin):
 
-    def __init__(self):
+    def __init__(self, stem, lemma):
         self.zip_path = self.prompt_text()
         AvatureMixin.__init__(self, self.zip_path)
-        WordSearch.__init__(self, multiple=True, text=self.text)
-        WordCleanerMixin.__init__(self, self.text)
+        WordSearch.__init__(self, multiple=True, text=self.text, stem=stem, lemma=lemma)
+        WordCleanerMixin.__init__(self, self.stem, self.lemma)
 
     def prompt_text(self):
         return easygui.fileopenbox(msg="Select the zip file to extract")
 
     def _get_counts(self, topn=100):
-        all_docs = [self.clean_text(doc) for doc in self.text]
+        all_docs = [self.clean(doc) for doc in self.text]
         all_text = [words for doc in all_docs for words in doc]
 
         # Get occurrence counts
@@ -232,17 +156,20 @@ class AvatureWordCounts(WordSearch, WordCleanerMixin, AvatureMixin):
 
 class CiscoJobsWordCounts(WordSearch, WordCleanerMixin, CiscoJobsMixin):
 
-    def __init__(self):
+    def __init__(self, stem, lemma):
         self.req_id = self.prompt_text()
-        CiscoJobsMixin.__init__(self, self.req_id)
-        WordSearch.__init__(self, multiple=False, text=self.text)
-        WordCleanerMixin.__init__(self, self.text)
+        try:
+            CiscoJobsMixin.__init__(self, self.req_id)
+        except:
+            easygui.msgbox("That Job was not found, please try another")
+        WordSearch.__init__(self, multiple=False, text=self.text, stem=stem, lemma=lemma)
+        WordCleanerMixin.__init__(self, self.stem, self.lemma)
 
     def prompt_text(self):
         return easygui.enterbox(msg="Enter the Req ID")
 
     def _get_counts(self, topn=100):
-        all_text = self.clean_text(self.text)
+        all_text = self.clean(self.text)
         word_counter = Counter(all_text)
         counts = word_counter.most_common(n=topn)
         counts = ["{} : {}".format(word, count) for word, count in counts]
@@ -254,10 +181,13 @@ class CiscoJobsWordCounts(WordSearch, WordCleanerMixin, CiscoJobsMixin):
 
 class CiscoJobsKeywords(WordSearch, KeywordExtractionMixin, CiscoJobsMixin):
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         self.req_id = self.prompt_text()
-        CiscoJobsMixin.__init__(self, self.req_id)
-        WordSearch.__init__(self, multiple=False, text=self.text)
+        try:
+            CiscoJobsMixin.__init__(self, self.req_id)
+        except:
+            easygui.msgbox("That Job was not found, please try another")
+        WordSearch.__init__(self, multiple=False, text=self.text, stem=False, lemma=False)
         KeywordExtractionMixin.__init__(self)
 
     def prompt_text(self):
@@ -273,33 +203,21 @@ class CiscoJobsKeywords(WordSearch, KeywordExtractionMixin, CiscoJobsMixin):
         return self._get_keywords()
 
 
-def prompt():
-    mode = easygui.choicebox("Pick a mode", choices=["Extract Keywords", "Extract Keywords - Multiple", "Word Counts",
-                                                     "Word Counts - Multiple", "Word Counts - Wikipedia",
-                                                     "Extract Avature", "Extract Keywords - Cisco Jobs",
-                                                     "Word Counts - Cisco Jobs"])
+mode_map = {'Keywords': [KeywordSearch, False],
+            'Keywords - Multiple': [KeywordSearch, True],
+            'Keywords - Cisco Jobs': CiscoJobsKeywords,
+            'Word Counts': [WordCounts, False],
+            'Word Counts - Multiple': [WordCounts, True],
+            'Word Counts - Avature Quick View': AvatureWordCounts,
+            'Word Counts - Cisco Jobs': CiscoJobsWordCounts,
+            'Word Counts - Wikipedia': WikiWordCounts}
 
-    if mode == 'Extract Keywords':
-        return KeywordSearch(multiple=False)
-    elif mode == 'Extract Keywords - Multiple':
-        return KeywordSearch(multiple=True)
-    elif mode == "Word Counts":
-        return WordCounts(multiple=False)
-    elif mode == 'Word Counts - Multiple':
-        return WordCounts(multiple=True)
-    elif mode == "Word Counts - Wikipedia":
-        return WikiWordCounts()
-    elif mode == "Extract Avature":
-        return AvatureWordCounts()
-    elif mode == "Extract Keywords - Cisco Jobs":
-        return CiscoJobsKeywords()
-    elif mode == "Word Counts - Cisco Jobs":
-        return CiscoJobsWordCounts()
-
+secondary_options = [k for k in list(mode_map.keys()) if k.startswith('Word Counts')]
 
 running = True
+ui = UserInterface(mode_objects_map=mode_map, secondary_options=secondary_options)
 while running:
-    result = prompt()
+    result = ui.prompt()
     if not result:
         running = False
         break
@@ -307,4 +225,3 @@ while running:
     if not easygui.ccbox("More?"):
         running = False
         break
-

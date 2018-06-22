@@ -1,5 +1,13 @@
 import re
+from nltk.corpus import wordnet as wn
+from nltk.corpus import stopwords as sw
+from nltk import wordpunct_tokenize
+from nltk import WordNetLemmatizer
+from nltk import sent_tokenize
+from nltk import pos_tag
+from nltk.stem.porter import PorterStemmer
 import string
+
 
 STOPWORDS = frozenset([
     'all', 'six', 'just', 'less', 'being', 'indeed', 'over', 'move', 'anyway', 'four', 'not', 'own', 'through',
@@ -29,8 +37,8 @@ STOPWORDS = frozenset([
     'becomes', 'you', 'if', 'nobody', 'unless', 'whereas', 'see', 'though', 'may', 'after', 'upon', 'most', 'hereupon',
     'eight', 'but', 'serious', 'nothing', 'such', 'why', 'off', 'a', 'don', 'whereby', 'third', 'i', 'whole', 'noone',
     'sometimes', 'well', 'amoungst', 'yours', 'their', 'rather', 'without', 'so', 'five', 'the', 'first', 'with',
-    'make', 'once', 'data', 'development', 'web', 'applications', 'developed'
-])
+    'make', 'once', 'data', 'development', 'web', 'applications', 'developed', 'experience', 'summary', 'description'
+] + sw.words('english'))
 
 RE_PUNCT = re.compile(r'([%s])+' % re.escape(string.punctuation), re.UNICODE)
 RE_TAGS = re.compile(r"<([^>]+)>", re.UNICODE)
@@ -49,12 +57,44 @@ FILTERS = [lambda x: x.lower(),
            lambda x: " ".join([word for word in x.split() if len(word)>=3])]
 
 
-def preprocess_string(s, filters):
+def preprocess_string(s, filters=FILTERS, lemma=False, stem=False):
+    if lemma:
+        s = _tokenize(s)
     for f in filters:
         s = f(s)
+    if stem:
+        stemmer = PorterStemmer()
+        s = " ".join([stemmer.stem(word) for word in s.split()])
     return s.split()
 
 
+def _tokenize(text):
+    sentences = sent_tokenize(text)
+
+    def tokenize_sentence(sent):
+        return [_lemmatize(token, tag) for token, tag in pos_tag(wordpunct_tokenize(sent))]
+
+    sentence_tokens = map(tokenize_sentence, sentences)
+
+    return " ".join([token for sentence in sentence_tokens for token in sentence])
 
 
+def _lemmatize(token, tag):
+    tag = {
+        'N': wn.NOUN,
+        'V': wn.VERB,
+        'R': wn.ADV,
+        'J': wn.ADJ
+    }.get(tag[0], wn.NOUN)
 
+    return WordNetLemmatizer().lemmatize(token, tag)
+
+
+class WordCleanerMixin(object):
+
+    def __init__(self, stem, lemma):
+        self.lemma = lemma
+        self.stem = stem
+
+    def clean(self, doc):
+        return preprocess_string(doc, filters=FILTERS, lemma=self.lemma, stem=self.stem)
