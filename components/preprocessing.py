@@ -1,4 +1,6 @@
 import re
+import nltk
+nltk.data.path.append(r"wordscanner/nltk_data_folder")
 from nltk.corpus import wordnet as wn
 from nltk.corpus import stopwords as sw
 from nltk import wordpunct_tokenize
@@ -68,7 +70,31 @@ def preprocess_string(s, filters=FILTERS, lemma=False, stem=False):
     return s.split()
 
 
-def _tokenize(text):
+def preprocess_string_to_sentences(s, filters=FILTERS, lemma=False, stem=False):
+    if lemma:
+        sentences = _tokenize(s, as_sentences=True)
+    else:
+        sentences = sent_tokenize(s)
+
+    def text_filter(sentence):
+        for f in filters:
+            sentence = f(sentence)
+        return sentence
+
+    def stem_text(text):
+        stem_sent = " ".join([stemmer.stem(word) for word in text.split()])
+        return stem_sent
+
+    sentences = map(text_filter, sentences)
+
+    if stem:
+        stemmer = PorterStemmer()
+        sentences = map(stem_text, sentences)
+
+    return list(sentences)
+
+
+def _tokenize(text, as_sentences=False):
     sentences = sent_tokenize(text)
 
     def tokenize_sentence(sent):
@@ -76,7 +102,10 @@ def _tokenize(text):
 
     sentence_tokens = map(tokenize_sentence, sentences)
 
-    return " ".join([token for sentence in sentence_tokens for token in sentence])
+    if as_sentences:
+        return [" ".join(sentence) for sentence in sentence_tokens]
+    else:
+        return " ".join([token for sentence in sentence_tokens for token in sentence])
 
 
 def _lemmatize(token, tag):
@@ -98,3 +127,12 @@ class WordCleanerMixin(object):
 
     def clean(self, doc):
         return preprocess_string(doc, filters=FILTERS, lemma=self.lemma, stem=self.stem)
+
+
+class SentenceCleanerMixin(object):
+    def __init__(self, stem, lemma):
+        self.lemma = lemma
+        self.stem = stem
+
+    def clean(self, doc):
+        return preprocess_string_to_sentences(doc, filters=FILTERS, lemma=self.lemma, stem=self.stem)
