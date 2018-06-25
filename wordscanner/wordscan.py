@@ -13,10 +13,11 @@ from components.wikiscraper import WikipediaMixin
 
 class WordSearch(object):
 
-    def __init__(self, multiple, stem, lemma, text=None):
+    def __init__(self, multiple, stem, lemma, phrases, text=None):
         self.multiple = multiple
         self.stem = stem
         self.lemma = lemma
+        self.phrases = phrases
         if not text:
             self.text = self.prompt_text()
         else:
@@ -45,7 +46,7 @@ class WordSearch(object):
 class KeywordSearch(WordSearch, KeywordExtractionMixin):
 
     def __init__(self, multiple):
-        WordSearch.__init__(self, multiple, stem=False, lemma=False)  # Not used with Rake
+        WordSearch.__init__(self, multiple, stem=False, lemma=False, phrases=False)  # Not used with Rake
         KeywordExtractionMixin.__init__(self)
 
     def _get_keywords(self, scores=True):
@@ -64,9 +65,9 @@ class KeywordSearch(WordSearch, KeywordExtractionMixin):
 
 class WordCounts(WordSearch, WordCleanerMixin):
 
-    def __init__(self, multiple, stem, lemma):
-        WordSearch.__init__(self, multiple, stem, lemma)
-        WordCleanerMixin.__init__(self, self.stem, self.lemma)
+    def __init__(self, multiple, stem, lemma, phrases):
+        WordSearch.__init__(self, multiple, stem, lemma, phrases)
+        WordCleanerMixin.__init__(self, self.stem, self.lemma, self.phrases)
 
     def _get_counts(self, topn=100):
         if self.multiple:
@@ -86,11 +87,11 @@ class WordCounts(WordSearch, WordCleanerMixin):
 
 class WikiWordCounts(WordSearch, WordCleanerMixin, WikipediaMixin):
 
-    def __init__(self, stem, lemma):
+    def __init__(self, stem, lemma, phrases):
         self.url = self.prompt_text()
         WikipediaMixin.__init__(self, self.url)
-        WordSearch.__init__(self, multiple=False, text=self.text, stem=stem, lemma=lemma)
-        WordCleanerMixin.__init__(self, self.stem, self.lemma)
+        WordSearch.__init__(self, multiple=False, text=self.text, stem=stem, lemma=lemma, phrases=phrases)
+        WordCleanerMixin.__init__(self, self.stem, self.lemma, self.phrases)
 
     def prompt_text(self):
         return easygui.enterbox(msg="Enter the wikipedia URL")
@@ -113,11 +114,11 @@ class WikiWordCounts(WordSearch, WordCleanerMixin, WikipediaMixin):
 
 class AvatureWordCounts(WordSearch, WordCleanerMixin, AvatureMixin):
 
-    def __init__(self, stem, lemma):
+    def __init__(self, stem, lemma, phrases):
         self.zip_path = self.prompt_text()
         AvatureMixin.__init__(self, self.zip_path)
-        WordSearch.__init__(self, multiple=True, text=self.text, stem=stem, lemma=lemma)
-        WordCleanerMixin.__init__(self, self.stem, self.lemma)
+        WordSearch.__init__(self, multiple=True, text=self.text, stem=stem, lemma=lemma, phrases=phrases)
+        WordCleanerMixin.__init__(self, self.stem, self.lemma, self.phrases)
 
     def prompt_text(self):
         return easygui.fileopenbox(msg="Select the zip file to extract")
@@ -156,14 +157,14 @@ class AvatureWordCounts(WordSearch, WordCleanerMixin, AvatureMixin):
 
 class CiscoJobsWordCounts(WordSearch, WordCleanerMixin, CiscoJobsMixin):
 
-    def __init__(self, stem, lemma):
+    def __init__(self, stem, lemma, phrases):
         self.req_id = self.prompt_text()
         try:
             CiscoJobsMixin.__init__(self, self.req_id)
         except:
             easygui.msgbox("That Job was not found, please try another")
-        WordSearch.__init__(self, multiple=False, text=self.text, stem=stem, lemma=lemma)
-        WordCleanerMixin.__init__(self, self.stem, self.lemma)
+        WordSearch.__init__(self, multiple=False, text=self.text, stem=stem, lemma=lemma, phrases=phrases)
+        WordCleanerMixin.__init__(self, self.stem, self.lemma, self.phrases)
 
     def prompt_text(self):
         return easygui.enterbox(msg="Enter the Req ID")
@@ -187,7 +188,7 @@ class CiscoJobsKeywords(WordSearch, KeywordExtractionMixin, CiscoJobsMixin):
             CiscoJobsMixin.__init__(self, self.req_id)
         except:
             easygui.msgbox("That Job was not found, please try another")
-        WordSearch.__init__(self, multiple=False, text=self.text, stem=False, lemma=False)
+        WordSearch.__init__(self, multiple=False, text=self.text, stem=False, lemma=False, phrases=False)
         KeywordExtractionMixin.__init__(self)
 
     def prompt_text(self):

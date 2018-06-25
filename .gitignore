@@ -2,3 +2,4 @@
 /build/*
 /dist/*
 /wordscanner/nltk_data_folder/*
+/wordscanner/models/

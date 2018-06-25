@@ -15,15 +15,16 @@ class UserInterface(object):
     def _map_mode(self, mode):
         if mode in self.secondary_options:
             secondary_selected = easygui.multchoicebox(title="Select Cleaning", msg="Select Preprocessing to Perform",
-                                                       choices=['Stem', 'Lemmatize'])
+                                                       choices=['Stem', 'Lemmatize', 'Phrase Detection'])
             stem = True if 'Stem' in secondary_selected else False
             lemma = True if 'Lemmatize' in secondary_selected else False
+            phrases = True if 'Phrase Detection' in secondary_selected else False
             obj = self.mode_objects_map[mode]
             if isinstance(obj, list):
                 multiple = obj[1]
                 obj = obj[0]
-                return obj(stem=stem, lemma=lemma, multiple=multiple)
+                return obj(stem=stem, lemma=lemma, phrases=phrases, multiple=multiple)
             else:
-                return obj(stem=stem, lemma=lemma)
+                return obj(stem=stem, lemma=lemma, phrases=phrases)
         else:
             return self.mode_objects_map[mode]()

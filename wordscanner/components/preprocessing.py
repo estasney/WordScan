@@ -9,6 +9,8 @@ from nltk import sent_tokenize
 from nltk import pos_tag
 from nltk.stem.porter import PorterStemmer
 import string
+from gensim.models.phrases import Phraser
+from app_config import Config
 
 
 STOPWORDS = frozenset([
@@ -59,7 +61,7 @@ FILTERS = [lambda x: x.lower(),
            lambda x: " ".join([word for word in x.split() if len(word)>=3])]
 
 
-def preprocess_string(s, filters=FILTERS, lemma=False, stem=False):
+def preprocess_string(s, filters=FILTERS, lemma=False, stem=False, phrases=False):
     if lemma:
         s = _tokenize(s)
     for f in filters:
@@ -67,10 +69,12 @@ def preprocess_string(s, filters=FILTERS, lemma=False, stem=False):
     if stem:
         stemmer = PorterStemmer()
         s = " ".join([stemmer.stem(word) for word in s.split()])
+    if phrases is not False and phrases is not None:
+        s = " ".join(phrases[s.split()])
     return s.split()
 
 
-def preprocess_string_to_sentences(s, filters=FILTERS, lemma=False, stem=False):
+def preprocess_string_to_sentences(s, filters=FILTERS, lemma=False, stem=False, phrases=False):
     if lemma:
         sentences = _tokenize(s, as_sentences=True)
     else:
@@ -85,11 +89,18 @@ def preprocess_string_to_sentences(s, filters=FILTERS, lemma=False, stem=False):
         stem_sent = " ".join([stemmer.stem(word) for word in text.split()])
         return stem_sent
 
+    def phrase_text(text):
+        phrased_sent = " ".join(phrases[text.split()])
+        return phrased_sent
+
     sentences = map(text_filter, sentences)
 
     if stem:
         stemmer = PorterStemmer()
         sentences = map(stem_text, sentences)
+
+    if phrases is not False and phrases is not None:
+        sentences = map(phrase_text, sentences)
 
     return list(sentences)
 
@@ -121,18 +132,34 @@ def _lemmatize(token, tag):
 
 class WordCleanerMixin(object):
 
-    def __init__(self, stem, lemma):
+    def __init__(self, stem, lemma, phrases=False):
         self.lemma = lemma
         self.stem = stem
+        self.phrases = self.load_phraser(phrases)
+
+    @staticmethod
+    def load_phraser(use_phrases):
+        if use_phrases:
+            return Phraser.load(Config.PHRASER_PATH)
+        else:
+            return False
 
     def clean(self, doc):
-        return preprocess_string(doc, filters=FILTERS, lemma=self.lemma, stem=self.stem)
+        return preprocess_string(doc, filters=FILTERS, lemma=self.lemma, stem=self.stem, phrases=self.phrases)
 
 
 class SentenceCleanerMixin(object):
-    def __init__(self, stem, lemma):
+    def __init__(self, stem, lemma, phrases=False):
         self.lemma = lemma
         self.stem = stem
+        self.phrases = phrases
+
+    @staticmethod
+    def load_phraser(use_phrases):
+        if use_phrases:
+            return Phraser.load(Config.PHRASER_PATH)
+        else:
+            return False
 
     def clean(self, doc):
-        return preprocess_string_to_sentences(doc, filters=FILTERS, lemma=self.lemma, stem=self.stem)
+        return preprocess_string_to_sentences(doc, filters=FILTERS, lemma=self.lemma, stem=self.stem, phrases=self.phrases)
