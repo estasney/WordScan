@@ -19,6 +19,8 @@ class UserInterface(object):
             stem = True if 'Stem' in secondary_selected else False
             lemma = True if 'Lemmatize' in secondary_selected else False
             obj = self.mode_objects_map[mode]
+            if isinstance(obj, list):
+                obj = obj[0]
             return obj(stem=stem, lemma=lemma)
         else:
             return self.mode_objects_map[mode]()
