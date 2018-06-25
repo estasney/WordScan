@@ -1,4 +1,4 @@
-from components.avature import _fetch_req
+from .avature import _fetch_req
 
 class CiscoJobsMixin(object):
 
