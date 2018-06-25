@@ -20,7 +20,10 @@ class UserInterface(object):
             lemma = True if 'Lemmatize' in secondary_selected else False
             obj = self.mode_objects_map[mode]
             if isinstance(obj, list):
+                multiple = obj[1]
                 obj = obj[0]
-            return obj(stem=stem, lemma=lemma)
+                return obj(stem=stem, lemma=lemma, multiple=multiple)
+            else:
+                return obj(stem=stem, lemma=lemma)
         else:
             return self.mode_objects_map[mode]()
