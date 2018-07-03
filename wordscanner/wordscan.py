@@ -5,7 +5,7 @@ import easygui
 
 from components.avature import AvatureMixin
 from components.cisco_jobs import CiscoJobsMixin
-from components.keywords import KeywordExtractionMixin
+from components.keywords import KeywordExtractionMixin, SkillExtractionMixin
 from components.preprocessing import WordCleanerMixin
 from components.ui import UserInterface
 from components.wikiscraper import WikipediaMixin
@@ -61,6 +61,34 @@ class KeywordSearch(WordSearch, KeywordExtractionMixin):
 
     def run(self):
         return self._get_keywords()
+
+
+class SkillSearch(WordSearch, WordCleanerMixin, SkillExtractionMixin):
+
+    def __init__(self, multiple):
+        WordSearch.__init__(self, multiple, stem=False, lemma=False, phrases=False)
+        WordCleanerMixin.__init__(self, self.stem, self.lemma, self.phrases)
+        SkillExtractionMixin.__init__(self)
+
+    def _get_skills(self):
+        if self.multiple:
+            all_text = [self.clean(doc) for doc in self.text]
+            all_text = [words for doc in all_text for words in doc]
+        else:
+            all_text = self.clean(self.text)
+
+        skills = [token for token in all_text if token in self.skills_set]
+        skill_counter = Counter(skills)
+        skill_data = []
+        for word, count in skill_counter.most_common():
+            occurence_count = self.skills_counts.get(word, 0)
+            skill_data.append((word, count, occurence_count))
+        skill_data = sorted(skill_data, key=itemgetter(2), reverse=True)
+        counts = ["{} : {}: {}".format(word, count, occurence_count) for word, count, occurence_count in skill_data]
+        self.show_results(counts)
+
+    def run(self):
+        return self._get_skills()
 
 
 class WordCounts(WordSearch, WordCleanerMixin):
@@ -207,6 +235,8 @@ class CiscoJobsKeywords(WordSearch, KeywordExtractionMixin, CiscoJobsMixin):
 mode_map = {'Keywords': [KeywordSearch, False],
             'Keywords - Multiple': [KeywordSearch, True],
             'Keywords - Cisco Jobs': CiscoJobsKeywords,
+            'Skill Scan': [SkillSearch, False],
+            'Skill Scan - Multiple': [SkillSearch, True],
             'Word Counts': [WordCounts, False],
             'Word Counts - Multiple': [WordCounts, True],
             'Word Counts - Avature Quick View': AvatureWordCounts,

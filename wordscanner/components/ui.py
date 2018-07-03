@@ -27,4 +27,10 @@ class UserInterface(object):
             else:
                 return obj(stem=stem, lemma=lemma, phrases=phrases)
         else:
-            return self.mode_objects_map[mode]()
+            obj = self.mode_objects_map[mode]
+            if not isinstance(obj, list):
+                return self.mode_objects_map[mode]()
+            else:
+                multiple = self.mode_objects_map[mode][1]
+                obj = self.mode_objects_map[mode][0]
+                return obj(multiple=multiple)
