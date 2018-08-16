@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup as bs4
 import re
 import requests
 import pandas as pd
+from unicodedata import normalize
 import zipfile
 
 
@@ -20,7 +21,7 @@ class ElementNotFoundException(Exception):
         self.element = element
 
 
-JD_HEADERS = re.compile(r"^((What|Who|Why) (Cisco|You|We))")
+JD_HEADERS = re.compile(r"^(What|Who|Why)")
 
 def _get_soups(zip_path):
 
@@ -137,8 +138,31 @@ def _fetch_req(req_num):
         raise ElementNotFoundException(message="Job Description Element Not Found", element="job_description")
 
     raw_text = jd_element.get_text("\n")  # Join with newlines
-    text_lines = [line for line in raw_text.splitlines() if not JD_HEADERS.search(line)]
-    return " ".join(text_lines)
+    raw_text = normalize('NFKD', raw_text)
+    text_lines = raw_text.splitlines()
+
+    def remove_boilerplate(x):
+        if JD_HEADERS.findall(x):
+            return False
+        else:
+            return True
+
+    text_lines = list(filter(lambda x: remove_boilerplate(x), text_lines))
+
+    def slice_cisco(lines):
+        counter = 0
+        while counter < len(lines):
+            if "why cisco" in lines[counter].lower() or "we connect" in lines[counter].lower():
+                return counter
+            else:
+                counter += 1
+        return -1
+
+    sliced_lines_idx = slice_cisco(text_lines)
+    if sliced_lines_idx > 0:
+        return " ".join(text_lines[:sliced_lines_idx])
+    else:
+        return " ".join(text_lines)
 
 
 class AvatureMixin(object):
