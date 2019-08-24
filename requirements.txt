@@ -6,7 +6,7 @@ easygui==0.98.1
 future==0.16.0
 idna==2.7
 macholib==1.9
-nltk==3.3
+nltk==3.4.5
 numpy==1.14.5
 pandas==0.23.1
 pefile==2017.11.5
