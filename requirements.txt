@@ -18,4 +18,4 @@ pywin32==223
 rake-nltk==1.0.4
 requests==2.19.1
 six==1.11.0
-urllib3==1.23
+urllib3==1.24.2
